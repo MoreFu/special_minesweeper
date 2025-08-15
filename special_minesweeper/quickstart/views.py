@@ -1,7 +1,11 @@
 from django.contrib.auth.models import User
 from rest_framework import permissions, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+import random
 
-from special_minesweeper.quickstart.serializers import UserSerializer
+from special_minesweeper.quickstart.serializers import InitializeGameSerializer, UserSerializer, MinesweeperGameSerializer
+from special_minesweeper.quickstart.models import MinesweeperGame
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -11,3 +15,50 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
+
+class MinesweeperGameViewSet(viewsets.ModelViewSet):
+    serializer_class = MinesweeperGameSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Only list games for the current logged-in user
+        return MinesweeperGame.objects.filter(user=self.request.user).order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['post'])
+    def initialize(self, request):
+        """Custom endpoint to initialize a new Minesweeper game."""
+        serializer = InitializeGameSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        existing_game = MinesweeperGame.objects.filter(user=request.user).first()
+        while existing_game:
+            existing_game.delete()
+            existing_game = MinesweeperGame.objects.filter(user=request.user).first()
+
+# Create a new game
+        width = serializer.validated_data.get("width")
+        height = serializer.validated_data.get("height")
+        mines = serializer.validated_data.get("mines")
+
+        # Build board with mines
+        board = [[{"label": None, "value": 0} for _ in range(width)] for _ in range(height)]
+        mine_positions = random.sample(range(width * height), mines)
+        for pos in mine_positions:
+            r, c = divmod(pos, width)
+            board[r][c]["value"] = "M"
+
+        game = MinesweeperGame(user=request.user, width=width, height=height, mines=mines, board_state=board)
+        # reveal first cell
+        revealed = False
+        while not revealed:
+            row = random.randint(0, width - 1)
+            col = random.randint(0, height - 1)
+            if board[row][col]["value"] != "M":
+                revealed = True
+                game.move(row, col)
+        game.save()
+
+        return Response(MinesweeperGameSerializer(game, context={'request': request}).data)
