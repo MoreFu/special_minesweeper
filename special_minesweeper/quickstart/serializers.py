@@ -17,4 +17,4 @@ class MinesweeperGameSerializer(serializers.HyperlinkedModelSerializer):
 class InitializeGameSerializer(serializers.Serializer):
     width = serializers.IntegerField(required=False, default=8)
     height = serializers.IntegerField(required=False, default=8)
-    mines = serializers.IntegerField(required=False, default=24)
+    mines = serializers.IntegerField(required=False, default=12)

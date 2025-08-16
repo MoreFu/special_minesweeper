@@ -2,6 +2,42 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:8000'; // Set to your Django backend URL if needed
 
+const Minesweeper = ({ data, rows = 8, cols = 8 }) => {
+  // initialize board state (hidden by default)
+  const [revealed, setRevealed] = useState(
+    Array(rows * cols).fill(false)
+  );
+
+  const handleClick = (index) => {
+    setRevealed((prev) => {
+      const newState = [...prev];
+      newState[index] = true;
+      return newState;
+    });
+  };
+
+  return (
+    <div className="grid gap-1"
+      style={{
+        display: "grid", // ✅ ensure grid display
+        gridTemplateColumns: `repeat(${cols}, 40px)`, // ✅ column layout
+      }}
+    >
+      {data.map((row, rIdx) =>
+        row.map((cell, cIdx) => (
+          <button
+            key={`${rIdx}-${cIdx}`}
+            onClick={() => handleClick(rIdx, cIdx)}
+            className="border rounded bg-white flex items-center justify-center text-sm font-medium text-gray-800"
+          >
+            {cell.label || '_'}
+          </button>
+        ))
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -168,7 +204,7 @@ export default function App() {
             </select>
           </div>
 
-          <div
+          {/* <div
             className="grid gap-1"
             style={{
               gridTemplateColumns: `repeat(${board[0]?.length || 8}, 2rem)`,
@@ -190,7 +226,7 @@ export default function App() {
                 if (label === "8") textColor = "text-gray-500";
 
                 const isMine = label === "M";
-                const display = isMine ? "💣" : label || "";
+                const display = isMine ? "💣" : label || "_";
 
                 return (
                   <div
@@ -204,6 +240,10 @@ export default function App() {
                 );
               })
             )}
+          </div> */}
+          <div className="p-4">
+            <h1 className="text-xl font-bold mb-2">Minesweeper Grid</h1>
+            <Minesweeper data={board} rows={8} cols={8} />
           </div>
         </>
       )}
