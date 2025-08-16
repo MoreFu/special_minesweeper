@@ -2,82 +2,104 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:8000'; // Set to your Django backend URL if needed
 
-const Minesweeper = ({ data, rows = 8, cols = 8 }) => {
-  // initialize board state (hidden by default)
-  const [revealed, setRevealed] = useState(
-    Array(rows * cols).fill(false)
-  );
+const getCSRFToken = async(url) => {
+  await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
 
-  const handleClick = (index) => {
-    setRevealed((prev) => {
-      const newState = [...prev];
-      newState[index] = true;
-      return newState;
-    });
-  };
-
-  return (
-    <div className="grid gap-1"
-      style={{
-        display: "grid", // ✅ ensure grid display
-        gridTemplateColumns: `repeat(${cols}, 40px)`, // ✅ column layout
-      }}
-    >
-      {data.map((row, rIdx) =>
-        row.map((cell, cIdx) => (
-          <button
-            key={`${rIdx}-${cIdx}`}
-            onClick={() => handleClick(rIdx, cIdx)}
-            className="border rounded bg-white flex items-center justify-center text-sm font-medium text-gray-800"
-          >
-            {cell.label || '_'}
-          </button>
-        ))
-      )}
-    </div>
-  );
+  const match = document.cookie.match(/csrftoken=([^;]+)/);
+  return match ? match[1] : null;
 };
 
 export default function App() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [csrfToken, setCsrfToken] = useState(null);
-  const [games, setGames] = useState([]);
-  const [selectedGame, setSelectedGame] = useState(null);
   const [loading, setLoading] = useState(false);
   const [board, setBoard] = useState([]);
+  const [status, setStatus] = useState('');
   const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     if (loggedIn) fetchGames();
   }, [loggedIn]);
 
-  // Run once when the component mounts
-  useEffect(() => {
-    getCSRFToken();
-  }, []);
+  const Minesweeper = ({ cols = 8 }) => {
+    const handleClick = async (e, row, col) => {
+      e.preventDefault(); // important! prevents the context menu from opening
 
-  // async function getCSRFToken() {
-  //   await fetch(`${API_BASE}/api-auth/login/`, {
-  //     method: 'GET',
-  //     credentials: 'include',
-  //   });
-  
-  //   const match = document.cookie.match(/csrftoken=([^;]+)/);
-  //   setCsrfToken(match ? match[1] : null);
-  // }
-  const getCSRFToken = async() => {
-    await fetch(`${API_BASE}/api-auth/login/`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-  
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    setCsrfToken(match ? match[1] : null);
+      const click_val = e.type == "click" ? "reveal" : "toggle_flag";
+      const currentLabel = board[row][col].label;
+      if (currentLabel == 'F') {
+        if (click_val != "toggle_flag") {
+          return;
+        }
+      } else if (currentLabel != undefined) {
+        return;
+      }
+      const token = await getCSRFToken(`${API_BASE}/games/update_cell/`);
+      const res = await fetch(`${API_BASE}/games/update_cell/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': token,
+        },
+        body: JSON.stringify({
+          "row": row,
+          "col": col,
+          "value": click_val,
+        }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      setBoard(data.board_state || []);
+      setStatus(data.status || '');
+    };
+
+    return (
+      <div
+        className="grid gap-1"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, 40px)`,
+        }}
+      >
+        {board.map((row, rIdx) =>
+          row.map((cell, cIdx) => {
+            // const revealed = cell.label != undefined && cell.label != "F";
+            const revealed = (status === "won" || status === "lost")
+              ? true // reveal everything if game is over
+              : (cell.label != undefined && cell.label !== "F");
+            const cellLabel = (status === "won" || status === "lost")
+              ? cell.value
+              : cell.label == undefined ? "_" : cell.label
+            return (<button
+              key={`${rIdx}-${cIdx}`}
+              onClick={(e) => handleClick(e, rIdx, cIdx)}
+              onContextMenu={(e) => handleClick(e, rIdx, cIdx)}
+              style={{
+                width: "40px",
+                height: "40px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: revealed ? "#3B82F6" : "#FFFFFF", // blue if label exists
+                color: revealed ? "#000000" : "#888888",           // black text if label exists
+              }}
+            >
+              {/* {cell.label == undefined ? "_" : cell.label} */}
+              {cellLabel}
+            </button>);
+          })
+        )}
+      </div>
+    );
   };
 
   const loginUser = async () => {
-    // await getCSRFToken()
+    const csrfToken = await getCSRFToken(`${API_BASE}/api-auth/login/`);
     console.log("CSRF Token:", csrfToken);
     const formData = new URLSearchParams();
     formData.append('csrfmiddlewaretoken', csrfToken);
@@ -110,16 +132,14 @@ export default function App() {
       const res = await fetch(`${API_BASE}/games/`, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRFToken': csrfToken,
+          // 'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
       });
-      console.log(res);
       const data = await res.json();
-      setGames(data);
       if (data.length > 0) {
-        setSelectedGame(data[0].id);
         setBoard(data[0].board_state || []);
+        setStatus(data[0].status || '');
       }
     } catch (err) {
       console.error(err);
@@ -130,16 +150,19 @@ export default function App() {
   const initializeGame = async () => {
     setLoading(true);
     try {
+      const token = await getCSRFToken(`${API_BASE}/games/initialize/`);
       const res = await fetch(`${API_BASE}/games/initialize/`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+          'X-CSRFToken': token,
         },
         credentials: 'include',
       });
-      await res.json();
+      const newGame = await res.json();
       await fetchGames();
+      setBoard(newGame.board_state || []);
+      setStatus(newGame.status || '');
     } catch (err) {
       console.error(err);
     }
@@ -183,67 +206,21 @@ export default function App() {
       >
         Initialize / Replace Game
       </button>
+      {(status === "won" || status === "lost") && (
+        <div
+          className={`p-2 mb-4 rounded text-white transition-all duration-500 ${
+            status === "won" ? "bg-green-500" : "bg-red-500"
+          }`}
+        >
+          {status === "won" ? "🎉 You Won!" : "💥 You Lost!"}
+        </div>
+      )}
       {loading && <p>Loading...</p>}
       {!loading && (
         <>
-          <div className="mb-4">
-            <label className="mr-2">Select Game:</label>
-            <select
-              value={selectedGame || ''}
-              onChange={(e) => {
-                setSelectedGame(e.target.value);
-                const g = games.find((game) => game.id == e.target.value);
-                setBoard(g?.board_state || []);
-              }}
-            >
-              {games.map((g) => (
-                <option key={g.id} value={g.id}>
-                  Game {g.id}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* <div
-            className="grid gap-1"
-            style={{
-              gridTemplateColumns: `repeat(${board[0]?.length || 8}, 2rem)`,
-            }}
-          >
-            {board.map((row, rowIndex) =>
-              row.map((cell, colIndex) => {
-                const label = cell.label;
-
-                // Decide colors
-                let textColor = "text-gray-800";
-                if (label === "1") textColor = "text-blue-500";
-                if (label === "2") textColor = "text-green-600";
-                if (label === "3") textColor = "text-red-500";
-                if (label === "4") textColor = "text-purple-700";
-                if (label === "5") textColor = "text-orange-600";
-                if (label === "6") textColor = "text-cyan-600";
-                if (label === "7") textColor = "text-black";
-                if (label === "8") textColor = "text-gray-500";
-
-                const isMine = label === "M";
-                const display = isMine ? "💣" : label || "_";
-
-                return (
-                  <div
-                    key={`${rowIndex}-${colIndex}`}
-                    className={`border w-8 h-8 flex items-center justify-center font-bold ${
-                      label ? "bg-gray-100" : "bg-gray-300"
-                    } ${textColor}`}
-                  >
-                    {display}
-                  </div>
-                );
-              })
-            )}
-          </div> */}
           <div className="p-4">
             <h1 className="text-xl font-bold mb-2">Minesweeper Grid</h1>
-            <Minesweeper data={board} rows={8} cols={8} />
+            <Minesweeper cols={8} />
           </div>
         </>
       )}

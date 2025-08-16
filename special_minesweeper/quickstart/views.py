@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 import random
 
-from special_minesweeper.quickstart.serializers import InitializeGameSerializer, UserSerializer, MinesweeperGameSerializer
+from special_minesweeper.quickstart.serializers import InitializeGameSerializer, UpdateCellSerializer, UserSerializer, MinesweeperGameSerializer
 from special_minesweeper.quickstart.models import MinesweeperGame
 
 
@@ -60,5 +60,24 @@ class MinesweeperGameViewSet(viewsets.ModelViewSet):
                 revealed = True
                 game.move(row, col)
         game.save()
+
+        return Response(MinesweeperGameSerializer(game, context={'request': request}).data)
+
+    @action(detail=False, methods=['post'])
+    def update_cell(self, request):
+        """endpoint to perform a move on the grid"""
+        serializer = UpdateCellSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        game = MinesweeperGame.objects.filter(user=request.user).first()
+        if (isinstance(game, MinesweeperGame)):
+            update_value = serializer.validated_data.get("value")
+            row =  serializer.validated_data.get("row")
+            col =  serializer.validated_data.get("col")
+            if (update_value == "reveal"):
+                game.move(row, col)
+            elif (update_value == "toggle_flag"):
+                game.toggle_flag(row, col)
+            game.save()
 
         return Response(MinesweeperGameSerializer(game, context={'request': request}).data)

@@ -67,7 +67,7 @@ class MinesweeperGame(models.Model):
         # process the current location
         self.board_state[row][col]["label"] = self.countMines(row, col)
         # base case
-        if not self.board_state[row][col]["value"] == 0:
+        if not self.board_state[row][col]["label"] == 0:
             return
             
         # recursive case: current location is empty -> process all neighbors        
@@ -107,5 +107,8 @@ class MinesweeperGame(models.Model):
         if self.gameWon():
             self.status = "won"
 
-    def flag(self, row, col):
-        self.board_state[row][col]["label"] = "F"
+    def toggle_flag(self, row, col):
+        if (self.board_state[row][col]["label"] != "F"):
+            self.board_state[row][col]["label"] = "F"
+        else:
+            self.board_state[row][col]["label"] = None
