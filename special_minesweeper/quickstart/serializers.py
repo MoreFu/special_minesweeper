@@ -15,9 +15,9 @@ class MinesweeperGameSerializer(serializers.HyperlinkedModelSerializer):
         read_only_fields = ["user", "created_at", "updated_at"]
 
 class InitializeGameSerializer(serializers.Serializer):
-    width = serializers.IntegerField(required=False, default=8)
-    height = serializers.IntegerField(required=False, default=8)
-    mines = serializers.IntegerField(required=False, default=12)
+    width = serializers.IntegerField(required=False, default=10)
+    height = serializers.IntegerField(required=False, default=10)
+    mines = serializers.IntegerField(required=False, default=15)
 
 class UpdateCellSerializer(serializers.Serializer):
     row = serializers.IntegerField(required=True)

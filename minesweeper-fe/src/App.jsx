@@ -24,7 +24,7 @@ export default function App() {
     if (loggedIn) fetchGames();
   }, [loggedIn]);
 
-  const Minesweeper = ({ cols = 8 }) => {
+  const Minesweeper = ({ cols }) => {
     const handleClick = async (e, row, col) => {
       e.preventDefault(); // important! prevents the context menu from opening
 
@@ -85,7 +85,11 @@ export default function App() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: revealed ? "#3B82F6" : "#FFFFFF", // blue if label exists
+                backgroundColor: cell.value === "M" && revealed
+                  ? "#EF4444" // red if it's a mine
+                  : revealed
+                    ? "#3B82F6" // blue for revealed safe cells
+                    : "#FFFFFF", // white for hidden
                 color: revealed ? "#000000" : "#888888",           // black text if label exists
               }}
             >
@@ -220,7 +224,7 @@ export default function App() {
         <>
           <div className="p-4">
             <h1 className="text-xl font-bold mb-2">Minesweeper Grid</h1>
-            <Minesweeper cols={8} />
+            <Minesweeper cols={10} />
           </div>
         </>
       )}
