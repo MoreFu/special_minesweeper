@@ -30,11 +30,13 @@ export default function App() {
 
       const click_val = e.type == "click" ? "reveal" : "toggle_flag";
       const currentLabel = board[row][col].label;
-      if (currentLabel == 'F') {
-        if (click_val != "toggle_flag") {
+      if (currentLabel === 'F') {
+        if (click_val !== "toggle_flag") {
           return;
         }
-      } else if (currentLabel != undefined) {
+      } else if (currentLabel === '?' && click_val === "toggle_flag") {
+        return;
+      } else if (currentLabel != undefined && currentLabel != '?') {
         return;
       }
       const token = await getCSRFToken(`${API_BASE}/games/update_cell/`);
@@ -61,15 +63,14 @@ export default function App() {
         className="grid gap-1"
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${cols}, 40px)`,
+          gridTemplateColumns: `repeat(${cols}, 60px)`,
         }}
       >
         {board.map((row, rIdx) =>
           row.map((cell, cIdx) => {
-            // const revealed = cell.label != undefined && cell.label != "F";
             const revealed = (status === "won" || status === "lost")
               ? true // reveal everything if game is over
-              : (cell.label != undefined && cell.label !== "F");
+              : (cell.label != undefined && cell.label !== "F" );
             const cellLabel = (status === "won" || status === "lost")
               ? cell.value
               : cell.label == undefined ? "_" : cell.label
@@ -78,14 +79,16 @@ export default function App() {
               onClick={(e) => handleClick(e, rIdx, cIdx)}
               onContextMenu={(e) => handleClick(e, rIdx, cIdx)}
               style={{
-                width: "40px",
-                height: "40px",
+                width: "60px",
+                height: "60px",
                 border: "1px solid #ccc",
                 borderRadius: "4px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: cell.value === "M" && revealed
+                backgroundColor: cell.label === "?"
+                  ? "#FFFF00"
+                  : cell.value === "M" && revealed && cell.label !== "BLINDS"
                   ? "#EF4444" // red if it's a mine
                   : revealed
                     ? "#3B82F6" // blue for revealed safe cells

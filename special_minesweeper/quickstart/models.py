@@ -5,6 +5,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from special_minesweeper.enums import Trap
+
 class MinesweeperGame(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -16,8 +18,6 @@ class MinesweeperGame(models.Model):
     mines = models.PositiveIntegerField()
 
     board_state = models.JSONField(default=list)   # Entire board as JSON
-    # revealed_cells = models.JSONField(default=list)  # [(x, y), ...]
-    # flagged_cells = models.JSONField(default=list)   # [(x, y), ...]
 
     status = models.CharField(
         max_length=20,
@@ -37,7 +37,6 @@ class MinesweeperGame(models.Model):
 
     def getValidNeighbors(self, row_index, col_index):
         cells = []
-        # existing_game = MinesweeperGame.objects.filter(user=request.user).first()
         for row in range(row_index - 1, row_index + 2):
             for col in range(col_index - 1, col_index + 2):
                 if self.isValid(row, col) and (row, col) != (row_index, col_index):
@@ -101,11 +100,33 @@ class MinesweeperGame(models.Model):
             # return because there is no need to recurse
             return
 
+        if self.board_state[row][col]["label"] == "?":
+            self.trigger_trap(row, col)
+            return
+
         self.moveHelper(row, col)
         
         # if the given move results in a winning game
         if self.gameWon():
             self.status = "won"
+
+    def trigger_trap(self, row, col):
+        trap_type = Trap[self.board_state[row][col]["value"]]
+        self.board_state[row][col]["label"] = trap_type.name
+
+        if (Trap.BLINDS == trap_type):
+            # apply blinds to the entire row
+            for c in range(self.width):
+                self.board_state[row][c]["label"] = trap_type.name
+        elif (Trap.FIRE == trap_type):
+            # burn everything around the fire, mines will explode
+            for r, c in self.getValidNeighbors(row, col):
+                if self.board_state[r][c]["label"] == "F":
+                    # skip if flagged
+                    continue
+                self.board_state[r][c]["label"] = trap_type.name
+                if self.board_state[r][c]["value"] == "M":
+                    self.status = "lost"
 
     def toggle_flag(self, row, col):
         if (self.board_state[row][col]["label"] != "F"):
